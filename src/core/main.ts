@@ -2601,7 +2601,15 @@ class MindMapView extends TextFileView {
         });
     }
 
+    /** Keep stored link targets intact while showing only their readable labels. */
+    getNodeDisplayText(text: string): string {
+        return text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+            (_match: string, target: string, alias: string | undefined) =>
+                alias ?? target.substring(target.lastIndexOf("/") + 1).replace(/\.md$/, ""));
+    }
+
     getNodeWidth(text: string): number {
+        text = this.getNodeDisplayText(text);
         const maxLength = this.settings.maxNodeLength;
         const baseWidth = 40;
         const charWidth = 10;
@@ -2820,18 +2828,19 @@ class MindMapView extends TextFileView {
         text.setAttribute("text-anchor", "middle");
 
         const maxLength = this.settings.maxNodeLength;
-        if (node.text.length > maxLength) {
-            text.textContent = node.text.substring(0, maxLength) + "...";
+        const displayText = this.getNodeDisplayText(node.text);
+        if (displayText.length > maxLength) {
+            text.textContent = displayText.substring(0, maxLength) + "...";
         } else {
-            text.textContent = node.text;
+            text.textContent = displayText;
         }
         text.classList.add("mindmap-node-text");
 
-        if (this.settings.showHoverPreview && node.text.length > maxLength) {
+        if (this.settings.showHoverPreview && displayText.length > maxLength) {
             this.registerDomEvent(nodeG as unknown as HTMLElement, "mouseenter", (e: MouseEvent) => {
                 if (this.currentTooltip) this.currentTooltip.remove();
 
-                this.currentTooltip = document.body.createEl("div", { cls: "mindmap-tooltip", text: node.text });
+                this.currentTooltip = document.body.createEl("div", { cls: "mindmap-tooltip", text: displayText });
                 this.currentTooltip.setCssStyles({
                     left: `${e.clientX + 15}px`,
                     top: `${e.clientY + 15}px`
@@ -3082,8 +3091,9 @@ class MindMapView extends TextFileView {
 
         new NoteSuggestModal(this.app, (file) => {
             this.pushHistory();
-            node.text = `[[${file.basename}]]`;
+            node.text = `[[${file.path.replace(/\.md$/, "")}|${file.basename}]]`;
             this.render();
+            void this.saveMindMap(true);
             const container = this.containerEl.querySelector(".mindmap-svg-container");
             if (container instanceof HTMLElement) container.focus();
         }).open();
